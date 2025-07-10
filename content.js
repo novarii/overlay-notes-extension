@@ -101,6 +101,9 @@ function setupEventListeners() {
     // Auto-save notes
     textarea.addEventListener('input', saveNotes);
     
+    // List formatting functionality
+    textarea.addEventListener('keydown', handleListFormatting);
+    
     // Load saved opacity
     loadSettings();
 }
@@ -226,7 +229,91 @@ function loadSettings() {
     loadPosition();
 }
 
-// Clean up on page unload
+function handleListFormatting(e) {
+    const textarea = e.target;
+    
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const value = textarea.value;
+        
+        // Find the start of the current line
+        const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+        const currentLine = value.substring(lineStart, start);
+        
+        // Check if current line starts with '*' (with optional whitespace)
+        const asteriskMatch = currentLine.match(/^(\s*)\*(.*)$/);
+        
+        if (asteriskMatch) {
+            const [, currentIndent, restOfLine] = asteriskMatch;
+            
+            if (e.shiftKey) {
+                // Shift+Tab: Decrease indentation
+                if (currentIndent.length >= 4) {
+                    const newIndent = currentIndent.substring(4);
+                    const newLine = newIndent + '*' + restOfLine;
+                    const newValue = value.substring(0, lineStart) + newLine + value.substring(start);
+                    
+                    textarea.value = newValue;
+                    textarea.selectionStart = textarea.selectionEnd = lineStart + newLine.length;
+                }
+            } else {
+                // Tab: Increase indentation
+                const newIndent = currentIndent + '    '; // 4 spaces
+                const newLine = newIndent + '*' + restOfLine;
+                const newValue = value.substring(0, lineStart) + newLine + value.substring(start);
+                
+                textarea.value = newValue;
+                textarea.selectionStart = textarea.selectionEnd = lineStart + newLine.length;
+            }
+        } else {
+            // Normal tab behavior for non-asterisk lines
+            const newValue = value.substring(0, start) + '    ' + value.substring(end);
+            textarea.value = newValue;
+            textarea.selectionStart = textarea.selectionEnd = start + 4;
+        }
+        
+        // Save the changes
+        saveNotes();
+    }
+    
+    // Enter key: Auto-continue list items
+    if (e.key === 'Enter') {
+        const start = textarea.selectionStart;
+        const value = textarea.value;
+        
+        // Find the start of the current line
+        const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+        const currentLine = value.substring(lineStart, start);
+        
+        // Check if current line is a list item
+        const listMatch = currentLine.match(/^(\s*)\*\s*(.*)$/);
+        
+        if (listMatch) {
+            const [, indent, content] = listMatch;
+            
+            // If the line is empty (just * with whitespace), remove the bullet
+            if (content.trim() === '') {
+                e.preventDefault();
+                const newValue = value.substring(0, lineStart) + indent + value.substring(start);
+                textarea.value = newValue;
+                textarea.selectionStart = textarea.selectionEnd = lineStart + indent.length;
+            } else {
+                // Continue the list with the same indentation
+                e.preventDefault();
+                const newListItem = '\n' + indent + '* ';
+                const newValue = value.substring(0, start) + newListItem + value.substring(start);
+                textarea.value = newValue;
+                textarea.selectionStart = textarea.selectionEnd = start + newListItem.length;
+            }
+            
+            // Save the changes
+            saveNotes();
+        }
+    }
+}
 window.addEventListener('beforeunload', () => {
     if (overlay) {
         saveNotes();
