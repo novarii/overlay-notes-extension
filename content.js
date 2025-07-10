@@ -1,7 +1,7 @@
 // Content script for overlay notes extension
 let overlay = null;
 let isDragging = false;
-let dragOffset = { x: 0, y: 0 }; // Clean up on page unload;
+let dragOffset = { x: 0, y: 0 }// Clean up on page unload;
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -281,6 +281,36 @@ function handleListFormatting(e) {
         
         // Save the changes
         saveNotes();
+    }
+    
+    // Backspace: Smart indent deletion
+    if (e.key === 'Backspace') {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const value = textarea.value;
+        
+        // Only handle single cursor position (not selections)
+        if (start === end && start > 0) {
+            // Find the start of the current line
+            const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+            const beforeCursor = value.substring(lineStart, start);
+            
+            // Check if cursor is right after 4 spaces (a tab indent)
+            if (beforeCursor.endsWith('    ') && beforeCursor.length >= 4) {
+                // Check if the 4 spaces are at the beginning of indentation
+                const beforeSpaces = beforeCursor.substring(0, beforeCursor.length - 4);
+                if (beforeSpaces.match(/^\s*$/)) { // Only whitespace before the 4 spaces
+                    e.preventDefault();
+                    
+                    // Remove all 4 spaces at once
+                    const newValue = value.substring(0, start - 4) + value.substring(start);
+                    textarea.value = newValue;
+                    textarea.selectionStart = textarea.selectionEnd = start - 4;
+                    
+                    saveNotes();
+                }
+            }
+        }
     }
     
     // Enter key: Auto-continue list items
