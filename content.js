@@ -1,7 +1,7 @@
 // Content script for overlay notes extension
 let overlay = null;
 let isDragging = false;
-let dragOffset = { x: 0, y: 0 };
+let dragOffset = { x: 0, y: 0 }; // Clean up on page unload;
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -256,8 +256,12 @@ function handleListFormatting(e) {
                     const newLine = newIndent + '*' + restOfLine;
                     const newValue = value.substring(0, lineStart) + newLine + value.substring(start);
                     
+                    // Calculate new cursor position (4 spaces to the left)
+                    const cursorOffset = start - lineStart;
+                    const newCursorPosition = lineStart + Math.max(0, cursorOffset - 4);
+                    
                     textarea.value = newValue;
-                    textarea.selectionStart = textarea.selectionEnd = lineStart + newLine.length;
+                    textarea.selectionStart = textarea.selectionEnd = newCursorPosition;
                 }
             } else {
                 // Tab: Increase indentation
