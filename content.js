@@ -1,7 +1,45 @@
 // Content script for overlay notes extension
 let overlay = null;
 let isDragging = false;
-let dragOffset = { x: 0, y: 0 }// Clean up on page unload;
+let dragOffset = { x: 0, y: 0 };
+
+function updateBulletDisplay() {
+    if (!overlay) return;
+    
+    const textarea = overlay.querySelector('.notes-textarea');
+    const bulletOverlay = overlay.querySelector('.bullet-overlay');
+    
+    if (!textarea || !bulletOverlay) return;
+    
+    const text = textarea.value;
+    const lines = text.split('\n');
+    
+    // Create display text with visual bullets
+    const displayLines = lines.map(line => {
+        const match = line.match(/^(\s*)\*(.*)$/);
+        if (match) {
+            const [, indent, content] = match;
+            const indentLevel = Math.floor(indent.length / 4);
+            
+            // Different bullet symbols based on indentation level
+            let bullet;
+            switch (indentLevel % 4) {
+                case 0: bullet = '●'; break;  // Solid circle
+                case 1: bullet = '○'; break;  // Empty circle  
+                case 2: bullet = '■'; break;  // Solid square
+                case 3: bullet = '□'; break;  // Empty square
+            }
+            
+            return indent + bullet + content;
+        }
+        return line;
+    });
+    
+    bulletOverlay.textContent = displayLines.join('\n');
+    
+    // Sync scroll position
+    bulletOverlay.scrollTop = textarea.scrollTop;
+};
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -40,6 +78,7 @@ function createOverlay() {
             </div>
         </div>
         <div class="notes-content">
+            <div class="bullet-overlay"></div>
             <textarea class="notes-textarea" placeholder="Start typing your notes here..."></textarea>
         </div>
     `;
@@ -99,10 +138,19 @@ function setupEventListeners() {
     document.addEventListener('mouseup', stopDrag);
 
     // Auto-save notes
-    textarea.addEventListener('input', saveNotes);
+    textarea.addEventListener('input', () => {
+        saveNotes();
+        updateBulletDisplay();
+    });
     
     // List formatting functionality
     textarea.addEventListener('keydown', handleListFormatting);
+    
+    // Update bullet display on scroll
+    textarea.addEventListener('scroll', updateBulletDisplay);
+    
+    // Initial bullet display update
+    updateBulletDisplay();
     
     // Load saved opacity
     loadSettings();
@@ -169,6 +217,7 @@ function loadNotes() {
         if (result.notes && overlay) {
             const textarea = overlay.querySelector('.notes-textarea');
             textarea.value = result.notes;
+            updateBulletDisplay();
         }
     });
 }
@@ -281,6 +330,9 @@ function handleListFormatting(e) {
         
         // Save the changes
         saveNotes();
+        
+        // Update bullet display
+        setTimeout(updateBulletDisplay, 0);
     }
     
     // Backspace: Smart indent deletion
@@ -308,6 +360,9 @@ function handleListFormatting(e) {
                     textarea.selectionStart = textarea.selectionEnd = start - 4;
                     
                     saveNotes();
+                    
+                    // Update bullet display
+                    setTimeout(updateBulletDisplay, 0);
                 }
             }
         }
@@ -341,6 +396,9 @@ function handleListFormatting(e) {
                 const newValue = value.substring(0, start) + newListItem + value.substring(start);
                 textarea.value = newValue;
                 textarea.selectionStart = textarea.selectionEnd = start + newListItem.length;
+                
+                // Update bullet display
+                setTimeout(updateBulletDisplay, 0);
             }
             
             // Save the changes
